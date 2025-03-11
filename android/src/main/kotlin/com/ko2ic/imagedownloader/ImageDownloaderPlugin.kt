@@ -19,14 +19,12 @@ import androidx.core.content.FileProvider
 import com.ko2ic.imagedownloader.ImageDownloaderPlugin.TemporaryDatabase.Companion.COLUMNS
 import com.ko2ic.imagedownloader.ImageDownloaderPlugin.TemporaryDatabase.Companion.TABLE_NAME
 import io.flutter.embedding.engine.plugins.FlutterPlugin
+import io.flutter.embedding.engine.plugins.activity.ActivityAware
+import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
-import io.flutter.plugin.common.PluginRegistry.Registrar
-import io.flutter.embedding.engine.plugins.activity.ActivityAware;
-import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding;
-
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileInputStream
@@ -34,23 +32,9 @@ import java.net.URLConnection
 import java.text.SimpleDateFormat
 import java.util.*
 
-
 class ImageDownloaderPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
     companion object {
-        @JvmStatic
-        fun registerWith(registrar: Registrar) {
-            val activity = registrar.activity() ?: return
-            val context = registrar.context() ?: return
-            val applicationContext = context.applicationContext
-            val pluginInstance = ImageDownloaderPlugin()
-            pluginInstance.setup(
-                registrar.messenger(),
-                applicationContext,
-                activity,
-                registrar,
-                null
-            )
-        }
+        // Removed registerWith method as it used the v1 embedding
 
         private const val CHANNEL = "plugins.ko2ic.com/image_downloader"
         private const val LOGGER_TAG = "image_downloader"
@@ -73,11 +57,10 @@ class ImageDownloaderPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
 
     override fun onAttachedToActivity(activityPluginBinding: ActivityPluginBinding) {
         setup(
-            pluginBinding.binaryMessenger,
-            pluginBinding.applicationContext,
-            activityPluginBinding.activity,
-            null,
-            activityPluginBinding
+                pluginBinding.binaryMessenger,
+                pluginBinding.applicationContext,
+                activityPluginBinding.activity,
+                activityPluginBinding
         )
     }
 
@@ -94,25 +77,19 @@ class ImageDownloaderPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
     }
 
     private fun setup(
-        messenger: BinaryMessenger,
-        applicationContext: Context,
-        activity: Activity,
-        registrar: Registrar?,
-        activityBinding: ActivityPluginBinding?
+            messenger: BinaryMessenger,
+            applicationContext: Context,
+            activity: Activity,
+            activityBinding: ActivityPluginBinding?
     ) {
         this.applicationContext = applicationContext
         channel = MethodChannel(messenger, CHANNEL)
         channel.setMethodCallHandler(this)
         permissionListener = ImageDownloaderPermissionListener(activity)
 
-        if (registrar != null) {
-            // V1 embedding setup for activity listeners.
-            registrar.addRequestPermissionsResultListener(permissionListener)
-        } else {
-            // V2 embedding setup for activity listeners.
-            this.activityBinding = activityBinding
-            this.activityBinding?.addRequestPermissionsResultListener(permissionListener)
-        }
+        // V2 embedding setup for activity listeners
+        this.activityBinding = activityBinding
+        this.activityBinding?.addRequestPermissionsResultListener(permissionListener)
     }
 
     private fun tearDown() {
@@ -131,7 +108,7 @@ class ImageDownloaderPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
                 inPublicDir = call.argument<Boolean>("inPublicDir") ?: true
 
                 val permissionCallback =
-                    applicationContext?.let { CallbackImpl(call, result, channel, it) }
+                        applicationContext?.let { CallbackImpl(call, result, channel, it) }
                 this.callback = permissionCallback
                 if (inPublicDir) {
                     this.permissionListener.callback = permissionCallback
@@ -148,28 +125,31 @@ class ImageDownloaderPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
             "open" -> {
                 open(call, result)
             }
-
             "findPath" -> {
-                val imageId = call.argument<String>("imageId")
-                    ?: throw IllegalArgumentException("imageId is required.")
+                val imageId =
+                        call.argument<String>("imageId")
+                                ?: throw IllegalArgumentException("imageId is required.")
                 val filePath = applicationContext?.let { findPath(imageId, it) }
                 result.success(filePath)
             }
             "findName" -> {
-                val imageId = call.argument<String>("imageId")
-                    ?: throw IllegalArgumentException("imageId is required.")
+                val imageId =
+                        call.argument<String>("imageId")
+                                ?: throw IllegalArgumentException("imageId is required.")
                 val fileName = applicationContext?.let { findName(imageId, it) }
                 result.success(fileName)
             }
             "findByteSize" -> {
-                val imageId = call.argument<String>("imageId")
-                    ?: throw IllegalArgumentException("imageId is required.")
+                val imageId =
+                        call.argument<String>("imageId")
+                                ?: throw IllegalArgumentException("imageId is required.")
                 val fileSize = applicationContext?.let { findByteSize(imageId, it) }
                 result.success(fileSize)
             }
             "findMimeType" -> {
-                val imageId = call.argument<String>("imageId")
-                    ?: throw IllegalArgumentException("imageId is required.")
+                val imageId =
+                        call.argument<String>("imageId")
+                                ?: throw IllegalArgumentException("imageId is required.")
                 val mimeType = applicationContext?.let { findMimeType(imageId, it) }
                 result.success(mimeType)
             }
@@ -179,8 +159,8 @@ class ImageDownloaderPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
 
     private fun open(call: MethodCall, result: MethodChannel.Result) {
 
-        val path = call.argument<String>("path")
-            ?: throw IllegalArgumentException("path is required.")
+        val path =
+                call.argument<String>("path") ?: throw IllegalArgumentException("path is required.")
 
         val file = File(path)
         val intent = Intent(Intent.ACTION_VIEW)
@@ -189,13 +169,14 @@ class ImageDownloaderPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension)
 
         if (Build.VERSION.SDK_INT >= 24) {
-            val uri = applicationContext?.let {
-                FileProvider.getUriForFile(
-                    it,
-                    "${applicationContext?.packageName}.image_downloader.provider",
-                    file
-                )
-            }
+            val uri =
+                    applicationContext?.let {
+                        FileProvider.getUriForFile(
+                                it,
+                                "${applicationContext?.packageName}.image_downloader.provider",
+                                file
+                        )
+                    }
             intent.setDataAndType(uri, mimeType)
         } else {
             intent.setDataAndType(Uri.fromFile(file), mimeType)
@@ -212,7 +193,6 @@ class ImageDownloaderPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
                 applicationContext?.startActivity(intent)
             }
         }
-
     }
 
     private fun findPath(imageId: String, context: Context): String {
@@ -240,57 +220,65 @@ class ImageDownloaderPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         if (inPublicDir) {
             val contentResolver = context.contentResolver
             return contentResolver.query(
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                null,
-                "${MediaStore.Images.Media._ID}=?",
-                arrayOf(imageId),
-                null
-            ).use {
-                checkNotNull(it) { "$imageId is an imageId that does not exist." }
-                it.moveToFirst()
-                val path = it.getString(it.getColumnIndex(MediaStore.Images.Media.DATA))
-                val name = it.getString(it.getColumnIndex(MediaStore.Images.Media.DISPLAY_NAME))
-                val size = it.getInt(it.getColumnIndex(MediaStore.Images.Media.SIZE))
-                val mimeType = it.getString(it.getColumnIndex(MediaStore.Images.Media.MIME_TYPE))
-                FileData(path = path, name = name, byteSize = size, mimeType = mimeType)
-            }
+                            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                            null,
+                            "${MediaStore.Images.Media._ID}=?",
+                            arrayOf(imageId),
+                            null
+                    )
+                    .use {
+                        checkNotNull(it) { "$imageId is an imageId that does not exist." }
+                        it.moveToFirst()
+                        val path = it.getString(it.getColumnIndex(MediaStore.Images.Media.DATA))
+                        val name =
+                                it.getString(
+                                        it.getColumnIndex(MediaStore.Images.Media.DISPLAY_NAME)
+                                )
+                        val size = it.getInt(it.getColumnIndex(MediaStore.Images.Media.SIZE))
+                        val mimeType =
+                                it.getString(it.getColumnIndex(MediaStore.Images.Media.MIME_TYPE))
+                        FileData(path = path, name = name, byteSize = size, mimeType = mimeType)
+                    }
         } else {
             val db = TemporaryDatabase(context).readableDatabase
             return db.query(
-                TABLE_NAME,
-                COLUMNS,
-                "${MediaStore.Images.Media._ID}=?",
-                arrayOf(imageId),
-                null,
-                null,
-                null,
-                null
-            )
-                .use {
-                    it.moveToFirst()
-                    val path = it.getString(it.getColumnIndex(MediaStore.Images.Media.DATA))
-                    val name = it.getString(it.getColumnIndex(MediaStore.Images.Media.DISPLAY_NAME))
-                    val size = it.getInt(it.getColumnIndex(MediaStore.Images.Media.SIZE))
-                    val mimeType =
-                        it.getString(it.getColumnIndex(MediaStore.Images.Media.MIME_TYPE))
-                    FileData(path = path, name = name, byteSize = size, mimeType = mimeType)
-                }
+                            TABLE_NAME,
+                            COLUMNS,
+                            "${MediaStore.Images.Media._ID}=?",
+                            arrayOf(imageId),
+                            null,
+                            null,
+                            null,
+                            null
+                    )
+                    .use {
+                        it.moveToFirst()
+                        val path = it.getString(it.getColumnIndex(MediaStore.Images.Media.DATA))
+                        val name =
+                                it.getString(
+                                        it.getColumnIndex(MediaStore.Images.Media.DISPLAY_NAME)
+                                )
+                        val size = it.getInt(it.getColumnIndex(MediaStore.Images.Media.SIZE))
+                        val mimeType =
+                                it.getString(it.getColumnIndex(MediaStore.Images.Media.MIME_TYPE))
+                        FileData(path = path, name = name, byteSize = size, mimeType = mimeType)
+                    }
         }
     }
 
     class CallbackImpl(
-        private val call: MethodCall,
-        private val result: MethodChannel.Result,
-        private val channel: MethodChannel,
-        private val context: Context
-    ) :
-        ImageDownloaderPermissionListener.Callback {
+            private val call: MethodCall,
+            private val result: MethodChannel.Result,
+            private val channel: MethodChannel,
+            private val context: Context
+    ) : ImageDownloaderPermissionListener.Callback {
 
         var downloader: Downloader? = null
 
         override fun granted() {
-            val url = call.argument<String>("url")
-                ?: throw IllegalArgumentException("url is required.")
+            val url =
+                    call.argument<String>("url")
+                            ?: throw IllegalArgumentException("url is required.")
 
             val headers: Map<String, String>? = call.argument<Map<String, String>>("headers")
 
@@ -298,17 +286,17 @@ class ImageDownloaderPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
             val inPublicDir = call.argument<Boolean>("inPublicDir") ?: true
             val directoryType = call.argument<String>("directory") ?: "DIRECTORY_DOWNLOADS"
             val subDirectory = call.argument<String>("subDirectory")
-            val tempSubDirectory = subDirectory ?: SimpleDateFormat(
-                "yyyy-MM-dd.HH.mm.sss",
-                Locale.getDefault()
-            ).format(Date())
+            val tempSubDirectory =
+                    subDirectory
+                            ?: SimpleDateFormat("yyyy-MM-dd.HH.mm.sss", Locale.getDefault())
+                                    .format(Date())
 
             val directory = convertToDirectory(directoryType)
 
             val uri = Uri.parse(url)
             val request = DownloadManager.Request(uri)
 
-            //request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            // request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             request.allowScanningByMediaScanner()
 
             if (headers != null) {
@@ -327,70 +315,84 @@ class ImageDownloaderPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
             val downloader = Downloader(context, request)
             this.downloader = downloader
 
-            downloader.execute(onNext = {
-                Log.d(LOGGER_TAG, it.result.toString())
-                when (it) {
-                    is Downloader.DownloadStatus.Failed -> Log.d(LOGGER_TAG, it.reason)
-                    is Downloader.DownloadStatus.Paused -> Log.d(LOGGER_TAG, it.reason)
-                    is Downloader.DownloadStatus.Running -> {
-                        Log.d(LOGGER_TAG, it.progress.toString())
-                        val args = HashMap<String, Any>()
-                        args["image_id"] = it.result.id.toString()
-                        args["progress"] = it.progress
+            downloader.execute(
+                    onNext = {
+                        Log.d(LOGGER_TAG, it.result.toString())
+                        when (it) {
+                            is Downloader.DownloadStatus.Failed -> Log.d(LOGGER_TAG, it.reason)
+                            is Downloader.DownloadStatus.Paused -> Log.d(LOGGER_TAG, it.reason)
+                            is Downloader.DownloadStatus.Running -> {
+                                Log.d(LOGGER_TAG, it.progress.toString())
+                                val args = HashMap<String, Any>()
+                                args["image_id"] = it.result.id.toString()
+                                args["progress"] = it.progress
 
-                        val uiThreadHandler = Handler(Looper.getMainLooper())
+                                val uiThreadHandler = Handler(Looper.getMainLooper())
 
-                        uiThreadHandler.post {
-                            channel.invokeMethod("onProgressUpdate", args)
+                                uiThreadHandler.post {
+                                    channel.invokeMethod("onProgressUpdate", args)
+                                }
+                            }
+                            else -> print("I don't know anything about it")
+                        }
+                    },
+                    onError = { result.error(it.code, it.message, null) },
+                    onComplete = {
+                        val file =
+                                if (inPublicDir) {
+                                    File(
+                                            "${Environment.getExternalStoragePublicDirectory(directory)}/$tempSubDirectory"
+                                    )
+                                } else {
+                                    File(
+                                            "${context.getExternalFilesDir(directory)}/$tempSubDirectory"
+                                    )
+                                }
+
+                        if (!file.exists()) {
+                            result.error(
+                                    "save_error",
+                                    "Couldn't save ${file.absolutePath ?: tempSubDirectory} ",
+                                    null
+                            )
+                        } else {
+                            val stream = BufferedInputStream(FileInputStream(file))
+                            val mimeType =
+                                    outputMimeType
+                                            ?: URLConnection.guessContentTypeFromStream(stream)
+
+                            val extension =
+                                    MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType)
+
+                            val fileName =
+                                    when {
+                                        subDirectory != null -> subDirectory
+                                        extension != null -> "$tempSubDirectory.$extension"
+                                        else -> uri.lastPathSegment?.split("/")?.last() ?: "file"
+                                    }
+
+                            val newFile =
+                                    if (inPublicDir) {
+                                        File(
+                                                "${Environment.getExternalStoragePublicDirectory(directory)}/$fileName"
+                                        )
+                                    } else {
+                                        File("${context.getExternalFilesDir(directory)}/$fileName")
+                                    }
+
+                            file.renameTo(newFile)
+                            val newMimeType =
+                                    mimeType
+                                            ?: MimeTypeMap.getSingleton()
+                                                    .getMimeTypeFromExtension(newFile.extension)
+                                                    ?: ""
+                            val imageId =
+                                    saveToDatabase(newFile, mimeType ?: newMimeType, inPublicDir)
+
+                            result.success(imageId)
                         }
                     }
-                    else -> print("I don't know anything about it")
-                }
-
-            }, onError = {
-                result.error(it.code, it.message, null)
-            }, onComplete = {
-
-                val file = if (inPublicDir) {
-                    File("${Environment.getExternalStoragePublicDirectory(directory)}/$tempSubDirectory")
-                } else {
-                    File("${context.getExternalFilesDir(directory)}/$tempSubDirectory")
-                }
-
-                if (!file.exists()) {
-                    result.error(
-                        "save_error",
-                        "Couldn't save ${file.absolutePath ?: tempSubDirectory} ",
-                        null
-                    )
-                } else {
-                    val stream = BufferedInputStream(FileInputStream(file))
-                    val mimeType = outputMimeType
-                        ?: URLConnection.guessContentTypeFromStream(stream)
-
-                    val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType)
-
-                    val fileName = when {
-                        subDirectory != null -> subDirectory
-                        extension != null -> "$tempSubDirectory.$extension"
-                        else -> uri.lastPathSegment?.split("/")?.last() ?: "file"
-                    }
-
-                    val newFile = if (inPublicDir) {
-                        File("${Environment.getExternalStoragePublicDirectory(directory)}/$fileName")
-                    } else {
-                        File("${context.getExternalFilesDir(directory)}/$fileName")
-                    }
-
-                    file.renameTo(newFile)
-                    val newMimeType = mimeType
-                        ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(newFile.extension)
-                        ?: ""
-                    val imageId = saveToDatabase(newFile, mimeType ?: newMimeType, inPublicDir)
-
-                    result.success(imageId)
-                }
-            })
+            )
         }
 
         override fun denied() {
@@ -420,26 +422,25 @@ class ImageDownloaderPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
             if (inPublicDir) {
 
                 context.contentResolver.insert(
-                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                    contentValues
+                        MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                        contentValues
                 )
                 return context.contentResolver.query(
-                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                    arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.DATA),
-                    "${MediaStore.Images.Media.DATA}=?",
-                    arrayOf(file.absolutePath),
-                    null
-                ).use {
-                    checkNotNull(it) { "${file.absolutePath} is not found." }
-                    it.moveToFirst()
-                    it.getString(it.getColumnIndex(MediaStore.Images.Media._ID))
-                }
+                                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                                arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.DATA),
+                                "${MediaStore.Images.Media.DATA}=?",
+                                arrayOf(file.absolutePath),
+                                null
+                        )
+                        .use {
+                            checkNotNull(it) { "${file.absolutePath} is not found." }
+                            it.moveToFirst()
+                            it.getString(it.getColumnIndex(MediaStore.Images.Media._ID))
+                        }
             } else {
                 val db = TemporaryDatabase(context)
                 val allowedChars = "ABCDEFGHIJKLMNOPQRSTUVWXTZabcdefghiklmnopqrstuvwxyz0123456789"
-                val id = (1..20)
-                    .map { allowedChars.random() }
-                    .joinToString("")
+                val id = (1..20).map { allowedChars.random() }.joinToString("")
                 contentValues.put(MediaStore.Images.Media._ID, id)
                 db.writableDatabase.insert(TABLE_NAME, null, contentValues)
                 return id
@@ -448,40 +449,46 @@ class ImageDownloaderPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
     }
 
     private data class FileData(
-        val path: String,
-        val name: String,
-        val byteSize: Int,
-        val mimeType: String
+            val path: String,
+            val name: String,
+            val byteSize: Int,
+            val mimeType: String
     )
 
     class TemporaryDatabase(context: Context) :
-        SQLiteOpenHelper(context, TABLE_NAME, null, DATABASE_VERSION) {
-
+            SQLiteOpenHelper(context, TABLE_NAME, null, DATABASE_VERSION) {
 
         companion object {
 
             val COLUMNS =
-                arrayOf(
-                    MediaStore.Images.Media._ID,
-                    MediaStore.Images.Media.MIME_TYPE,
-                    MediaStore.Images.Media.DATA,
-                    MediaStore.Images.ImageColumns.DISPLAY_NAME,
-                    MediaStore.Images.ImageColumns.SIZE
-                )
+                    arrayOf(
+                            MediaStore.Images.Media._ID,
+                            MediaStore.Images.Media.MIME_TYPE,
+                            MediaStore.Images.Media.DATA,
+                            MediaStore.Images.ImageColumns.DISPLAY_NAME,
+                            MediaStore.Images.ImageColumns.SIZE
+                    )
 
             private const val DATABASE_VERSION = 1
             const val TABLE_NAME = "image_downloader_temporary"
-            private const val DICTIONARY_TABLE_CREATE = "CREATE TABLE " + TABLE_NAME + " (" +
-                    MediaStore.Images.Media._ID + " TEXT, " +
-                    MediaStore.Images.Media.MIME_TYPE + " TEXT, " +
-                    MediaStore.Images.Media.DATA + " TEXT, " +
-                    MediaStore.Images.ImageColumns.DISPLAY_NAME + " TEXT, " +
-                    MediaStore.Images.ImageColumns.SIZE + " INTEGER" +
-                    ");"
+            private const val DICTIONARY_TABLE_CREATE =
+                    "CREATE TABLE " +
+                            TABLE_NAME +
+                            " (" +
+                            MediaStore.Images.Media._ID +
+                            " TEXT, " +
+                            MediaStore.Images.Media.MIME_TYPE +
+                            " TEXT, " +
+                            MediaStore.Images.Media.DATA +
+                            " TEXT, " +
+                            MediaStore.Images.ImageColumns.DISPLAY_NAME +
+                            " TEXT, " +
+                            MediaStore.Images.ImageColumns.SIZE +
+                            " INTEGER" +
+                            ");"
         }
 
-        override fun onUpgrade(db: SQLiteDatabase?, oldVersion: Int, newVersion: Int) {
-        }
+        override fun onUpgrade(db: SQLiteDatabase?, oldVersion: Int, newVersion: Int) {}
 
         override fun onCreate(db: SQLiteDatabase) {
             db.execSQL(DICTIONARY_TABLE_CREATE)
